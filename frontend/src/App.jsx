@@ -1,19 +1,19 @@
-
 // src/App.jsx
 import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import ProductList from "./pages/ProductList";
+import ProductCreate from "./pages/ProductCreate";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./layout/AppLayout";
-import GlobalLoader from "./components/GlobalLoader";
 
 export default function App() {
   return (
     <Router>
-      {/* <GlobalLoader /> */}
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <Routes>
         <Route path="/" element={<Login />} />
-      
 
         <Route
           path="/app"
@@ -24,9 +24,10 @@ export default function App() {
           }
         >
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="products" element={<ProductList />} />
+          <Route path="products/new" element={<ProductCreate />} />
         </Route>
       </Routes>
-      
     </Router>
   );
 }
