@@ -84,6 +84,9 @@ class SubVariant(models.Model):
     class Meta:
         db_table = "product_subvariant"
         unique_together = ("product", "combination_key")
+        constraints = [
+        models.CheckConstraint(condition=models.Q(stock__gte=0), name="subvariant_stock_gte_0")
+    ]
         indexes = [
             models.Index(fields=["product"]),
             models.Index(fields=["combination_key"]),

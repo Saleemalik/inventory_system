@@ -8,6 +8,7 @@ from .models import (
     ProductVariant,
     VariantOption,
     SubVariant,
+    StockTransaction,
 )
 
 
@@ -18,10 +19,7 @@ class VariantOptionSerializer(serializers.ModelSerializer):
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):
-    options = VariantOptionSerializer(
-        many=True,
-        read_only=True
-    )
+    options = VariantOptionSerializer(many=True)
 
     class Meta:
         model = ProductVariant
@@ -34,151 +32,81 @@ class SubVariantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubVariant
-        fields = [
-            "id",
-            "sku",
-            "stock",
-            "combination_key",
-            "option_values",
-        ]
+        fields = ["id", "sku", "stock", "combination_key", "option_values"]
 
     def get_option_values(self, obj):
-        return list(
-            obj.options.values_list("value", flat=True)
-        )
+        return list(obj.options.values_list("value", flat=True))
 
 
 class ProductSerializer(serializers.ModelSerializer):
 
-    variants = ProductVariantSerializer(
-        many=True,
-        write_only=True,
-        required=True,
-    )
-
-    subvariants = SubVariantSerializer(
-        many=True,
-        read_only=True,
-    )
+    variants = ProductVariantSerializer(many=True, write_only=True, required=True)
+    subvariants = SubVariantSerializer(many=True, read_only=True)
 
     class Meta:
         model = Products
         fields = "__all__"
-
-        read_only_fields = (
-            "id",
-            "CreatedDate",
-            "UpdatedDate",
-            "TotalStock",
-            "CreatedUser",
-        )
+        read_only_fields = ("id", "CreatedDate", "UpdatedDate", "TotalStock", "CreatedUser")
 
     def validate_variants(self, variants):
 
         if not variants:
-            raise serializers.ValidationError(
-                "At least one variant is required."
-            )
+            raise serializers.ValidationError("At least one variant is required.")
 
         variant_names = set()
 
         for variant in variants:
-
             name = variant.get("name", "").strip()
-
             if not name:
-                raise serializers.ValidationError(
-                    "Variant name is required."
-                )
+                raise serializers.ValidationError("Variant name is required.")
 
             if name.lower() in variant_names:
-                raise serializers.ValidationError(
-                    f"Duplicate variant name: {name}"
-                )
-
+                raise serializers.ValidationError(f"Duplicate variant name: {name}")
             variant_names.add(name.lower())
 
             options = variant.get("options", [])
-
             if not options:
-                raise serializers.ValidationError(
-                    f"{name} must contain at least one option."
-                )
+                raise serializers.ValidationError(f"{name} must contain at least one option.")
 
             option_values = []
-
             for option in options:
-
                 value = option.get("value", "").strip()
-
                 if not value:
-                    raise serializers.ValidationError(
-                        f"Empty option found in {name}"
-                    )
-
+                    raise serializers.ValidationError(f"Empty option found in {name}")
                 option_values.append(value.lower())
 
             if len(option_values) != len(set(option_values)):
-                raise serializers.ValidationError(
-                    f"Duplicate options found in {name}"
-                )
+                raise serializers.ValidationError(f"Duplicate options found in {name}")
 
         return variants
 
     @transaction.atomic
     def create(self, validated_data):
 
-        variants_data = validated_data.pop(
-            "variants",
-            []
-        )
-
+        variants_data = validated_data.pop("variants", [])
         request = self.context["request"]
 
-        product_obj = Products.objects.create(
-            **validated_data,
-            CreatedUser=request.user,
-        )
+        product_obj = Products.objects.create(**validated_data, CreatedUser=request.user)
 
         option_groups = []
 
         for variant_data in variants_data:
-
-            options_data = variant_data.pop(
-                "options",
-                []
-            )
-
-            variant_obj = ProductVariant.objects.create(
-                product=product_obj,
-                **variant_data,
-            )
+            options_data = variant_data.pop("options", [])
+            variant_obj = ProductVariant.objects.create(product=product_obj, **variant_data)
 
             created_options = []
-
             for option_data in options_data:
-
                 option_obj = VariantOption.objects.create(
-                    variant=variant_obj,
-                    value=option_data["value"].strip(),
+                    variant=variant_obj, value=option_data["value"].strip()
                 )
-
                 created_options.append(option_obj)
 
             option_groups.append(created_options)
 
-        self._generate_subvariants(
-            product_obj,
-            option_groups,
-        )
-
+        self._generate_subvariants(product_obj, option_groups)
         return product_obj
 
-    def _generate_subvariants(
-        self,
-        product_obj,
-        option_groups,
-    ):
+    def _generate_subvariants(self, product_obj, option_groups):
 
         if not option_groups:
             return
@@ -186,22 +114,13 @@ class ProductSerializer(serializers.ModelSerializer):
         combinations = cartesian_product(*option_groups)
 
         for combination in combinations:
-
-            option_ids = sorted(
-                [str(option.id) for option in combination]
-            )
-
+            option_ids = sorted(str(option.id) for option in combination)
             combination_key = "|".join(option_ids)
 
             option_values = [
-                option.value.upper().replace(" ", "-")
-                for option in combination
+                option.value.upper().replace(" ", "-") for option in combination
             ]
-
-            sku = (
-                f"{product_obj.ProductCode}-"
-                + "-".join(option_values)
-            )
+            sku = f"{product_obj.ProductCode}-" + "-".join(option_values)
 
             subvariant = SubVariant.objects.create(
                 product=product_obj,
@@ -209,118 +128,101 @@ class ProductSerializer(serializers.ModelSerializer):
                 combination_key=combination_key,
                 stock=0,
             )
-
             subvariant.options.set(combination)
 
 
 class ProductVariantCreateSerializer(serializers.ModelSerializer):
+    """Used for POST /api/products/{id}/variants/ (add a new variant)."""
 
     options = serializers.ListField(
-        child=serializers.CharField()
+        child=serializers.CharField(), allow_empty=False
     )
 
     class Meta:
         model = ProductVariant
-        fields = [
-            "id",
-            "name",
-            "options",
-        ]
-        
-        
+        fields = ["id", "name", "options"]
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Variant name is required.")
+        return value.strip()
+
+    def validate_options(self, options):
+        cleaned = [opt.strip() for opt in options if opt.strip()]
+        if not cleaned:
+            raise serializers.ValidationError("At least one option is required.")
+        if len(cleaned) != len(set(o.lower() for o in cleaned)):
+            raise serializers.ValidationError("Duplicate options are not allowed.")
+        return cleaned
 
 
-from rest_framework import serializers
+class ProductVariantUpdateSerializer(serializers.Serializer):
+    """Used for PUT /api/variants/{id}/ — validates name + options on update."""
 
-from .models import (
-    SubVariant,
-    StockTransaction,
-)
+    name = serializers.CharField(max_length=100)
+    options = serializers.ListField(
+        child=serializers.CharField(), allow_empty=False
+    )
+
+    def validate_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Variant name is required.")
+        return value.strip()
+
+    def validate_options(self, options):
+        cleaned = [opt.strip() for opt in options if opt.strip()]
+        if not cleaned:
+            raise serializers.ValidationError("At least one option is required.")
+        if len(cleaned) != len(set(o.lower() for o in cleaned)):
+            raise serializers.ValidationError("Duplicate options are not allowed.")
+        return cleaned
 
 
 class PurchaseSerializer(serializers.Serializer):
-
     subvariant_id = serializers.IntegerField()
-    quantity = serializers.DecimalField(
-        max_digits=20,
-        decimal_places=8,
-    )
-    notes = serializers.CharField(
-        required=False,
-        allow_blank=True,
-    )
+    quantity = serializers.DecimalField(max_digits=20, decimal_places=8)
+    notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate_quantity(self, value):
-
         if value <= 0:
-            raise serializers.ValidationError(
-                "Quantity must be greater than zero."
-            )
-
+            raise serializers.ValidationError("Quantity must be greater than zero.")
         return value
-    
-    
+
 
 class SaleSerializer(serializers.Serializer):
-
     subvariant_id = serializers.IntegerField()
-    quantity = serializers.DecimalField(
-        max_digits=20,
-        decimal_places=8,
-    )
-    notes = serializers.CharField(
-        required=False,
-        allow_blank=True,
-    )
+    quantity = serializers.DecimalField(max_digits=20, decimal_places=8)
+    notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate_quantity(self, value):
-
         if value <= 0:
-            raise serializers.ValidationError(
-                "Quantity must be greater than zero."
-            )
-
+            raise serializers.ValidationError("Quantity must be greater than zero.")
         return value
-    
-    
-class StockSerializer(serializers.ModelSerializer):
 
-    product_name = serializers.CharField(
-        source="product.ProductName",
-        read_only=True,
-    )
+
+class StockSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.ProductName", read_only=True)
 
     class Meta:
         model = SubVariant
-        fields = [
-            "id",
-            "sku",
-            "stock",
-            "product_name",
-        ]
+        fields = ["id", "sku", "stock", "product_name"]
 
-class StockTransactionSerializer(
-    serializers.ModelSerializer
-):
 
-    product_name = serializers.CharField(
-        source="product.ProductName",
-        read_only=True,
-    )
-
-    sku = serializers.CharField(
-        source="subvariant.sku",
-        read_only=True,
-    )
+class StockTransactionSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.ProductName", read_only=True)
+    sku = serializers.CharField(source="subvariant.sku", read_only=True)
 
     class Meta:
         model = StockTransaction
-        fields = [
-            "id",
-            "product_name",
-            "sku",
-            "transaction_type",
-            "quantity",
-            "notes",
-            "created_at",
-        ]
+        fields = ["id", "product_name", "sku", "transaction_type", "quantity", "notes", "created_at"]
+
+
+class StockReportFilterSerializer(serializers.Serializer):
+    """Validates query params for GET /api/stock/report/ so bad input -> 400, not 500."""
+
+    product_id = serializers.UUIDField(required=False)
+    transaction_type = serializers.ChoiceField(
+        choices=[StockTransaction.PURCHASE, StockTransaction.SALE], required=False
+    )
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
