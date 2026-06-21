@@ -10,10 +10,17 @@ from core.views import (
     StockAPIView,
 )
 
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
+
 router = routers.DefaultRouter()
 router.register("products", ProductViewSet, basename="products")
 
 urlpatterns = [
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path(
         "variants/<int:pk>/",
         ProductVariantViewSet.as_view({"put": "update", "delete": "destroy"}),
