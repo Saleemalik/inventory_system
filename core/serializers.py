@@ -211,10 +211,19 @@ class StockSerializer(serializers.ModelSerializer):
 class StockTransactionSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.ProductName", read_only=True)
     sku = serializers.CharField(source="subvariant.sku", read_only=True)
+    running_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = StockTransaction
-        fields = ["id", "product_name", "sku", "transaction_type", "quantity", "notes", "created_at"]
+        fields = [
+            "id", "product_name", "sku", "transaction_type",
+            "quantity", "notes", "created_at", "running_balance",
+        ]
+
+    def get_running_balance(self, obj):
+        # attached dynamically by attach_running_balances() in the view;
+        # falls back to None if not computed (e.g. used outside the report view)
+        return getattr(obj, "running_balance", None)
 
 
 class StockReportFilterSerializer(serializers.Serializer):

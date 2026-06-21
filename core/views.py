@@ -32,7 +32,7 @@ from .serializers import (
     StockReportFilterSerializer,
 )
 
-from .services import regenerate_subvariants, sync_product_stock, purchase_stock, sale_stock
+from .services import regenerate_subvariants, sync_product_stock, purchase_stock, sale_stock, attach_running_balances
 
 logger = logging.getLogger("core")
 
@@ -286,6 +286,8 @@ class StockReportAPIView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request)
+
+        page = attach_running_balances(page)
 
         serializer = StockTransactionSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
