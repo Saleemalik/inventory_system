@@ -41,6 +41,9 @@ INSTALLED_APPS = [
     
     'core',
     'versatileimagefield',
+    
+    
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
