@@ -13,6 +13,55 @@ from .models import (
 logger = logging.getLogger("core")
 
 
+def attach_running_balances(filtered_transactions):
+    """
+    Given an iterable of StockTransaction rows (already filtered by the
+    caller's date/product/type filters, but NOT yet paginated), compute
+    each row's running balance for its sub-variant and attach it as
+    `.running_balance`.
+
+    Balance must reflect the FULL history of each sub-variant up to that
+    transaction's timestamp -- not just the filtered window -- otherwise
+    a date-range filter would show a wrong/reset balance. So for every
+    sub-variant touched by the filtered rows, we pull its complete
+    transaction history in chronological order, build a balance map keyed
+    by transaction id, then annotate the filtered rows from that map.
+    """
+
+    filtered_transactions = list(filtered_transactions)
+    if not filtered_transactions:
+        return filtered_transactions
+
+    subvariant_ids = {t.subvariant_id for t in filtered_transactions}
+
+    full_history = (
+        StockTransaction.objects
+        .filter(subvariant_id__in=subvariant_ids)
+        .order_by("subvariant_id", "created_at", "id")
+        .values("id", "subvariant_id", "transaction_type", "quantity")
+    )
+
+    balance_by_subvariant = {}
+    balance_for_txn_id = {}
+
+    for row in full_history:
+        sv_id = row["subvariant_id"]
+        running = balance_by_subvariant.get(sv_id, 0)
+
+        if row["transaction_type"] == StockTransaction.PURCHASE:
+            running += row["quantity"]
+        else:  # SALE
+            running -= row["quantity"]
+
+        balance_by_subvariant[sv_id] = running
+        balance_for_txn_id[row["id"]] = running
+
+    for txn in filtered_transactions:
+        txn.running_balance = balance_for_txn_id.get(txn.id)
+
+    return filtered_transactions
+
+
 def _build_sku(product, options):
     option_values = [
         option.value.upper().replace(" ", "-") for option in options

@@ -2,9 +2,6 @@ import uuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from versatileimagefield.fields import VersatileImageField
-from django.contrib.auth.models import AbstractUser
-
-# Create your models here.
 
 
 class Products(models.Model):
@@ -38,7 +35,7 @@ class ProductVariant(models.Model):
     product = models.ForeignKey(
         Products, related_name="variants", on_delete=models.CASCADE, db_index=True
     )
-    name = models.CharField(max_length=100)  # Size, Color
+    name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -84,9 +81,10 @@ class SubVariant(models.Model):
     class Meta:
         db_table = "product_subvariant"
         unique_together = ("product", "combination_key")
+        ordering = ["id"]
         constraints = [
-        models.CheckConstraint(condition=models.Q(stock__gte=0), name="subvariant_stock_gte_0")
-    ]
+            models.CheckConstraint(condition=models.Q(stock__gte=0), name="subvariant_stock_gte_0"),
+        ]
         indexes = [
             models.Index(fields=["product"]),
             models.Index(fields=["combination_key"]),

@@ -5,6 +5,8 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ProductList from "./pages/ProductList";
 import ProductCreate from "./pages/ProductCreate";
+import StockManagement from "./pages/StockManagement";
+import StockReport from "./pages/StockReport";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./layout/AppLayout";
 
@@ -26,6 +28,8 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="products" element={<ProductList />} />
           <Route path="products/new" element={<ProductCreate />} />
+          <Route path="stock" element={<StockManagement />} />
+          <Route path="stock/report" element={<StockReport />} />
         </Route>
       </Routes>
     </Router>

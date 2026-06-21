@@ -5,6 +5,8 @@ export default function Sidebar() {
   const menuItems = [
     { label: "Dashboard", path: "/app/dashboard" },
     { label: "Products", path: "/app/products" },
+    { label: "Stock Management", path: "/app/stock" },
+    { label: "Stock Report", path: "/app/stock/report" },
   ];
 
   return (
