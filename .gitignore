@@ -1,0 +1,8 @@
+env
+db.sqlite3
+*.cpython*
+__pycache__
+node_modules
+.env
+/dist
+/media
