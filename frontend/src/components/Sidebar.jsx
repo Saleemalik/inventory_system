@@ -3,10 +3,10 @@ import { NavLink } from "react-router-dom";
 
 export default function Sidebar() {
   const menuItems = [
-    { label: "Dashboard", path: "/app/dashboard" },
-    { label: "Products", path: "/app/products" },
-    { label: "Stock Management", path: "/app/stock" },
-    { label: "Stock Report", path: "/app/stock/report" },
+    { label: "Dashboard", path: "/app/dashboard", end: true },
+    { label: "Products", path: "/app/products", end: true },
+    { label: "Stock Management", path: "/app/stock", end: true },
+    { label: "Stock Report", path: "/app/stock/report", end: true },
   ];
 
   return (
@@ -18,6 +18,7 @@ export default function Sidebar() {
           <NavLink
             key={item.path}
             to={item.path}
+            end={item.end}
             className={({ isActive }) =>
               `block px-4 py-2 rounded-md ${
                 isActive ? "bg-gray-700" : "hover:bg-gray-800"
