@@ -47,7 +47,7 @@ class SubVariantSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
 
-    variants = ProductVariantSerializer(many=True, write_only=True, required=True)
+    variants = ProductVariantSerializer(many=True, write_only=True, required=False)
     subvariants = SubVariantSerializer(many=True, read_only=True)
 
     class Meta:
@@ -57,8 +57,8 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def validate_variants(self, variants):
 
-        if not variants:
-            raise serializers.ValidationError("At least one variant is required.")
+        if variants is None:
+            return variants
 
         variant_names = set()
 
@@ -87,6 +87,13 @@ class ProductSerializer(serializers.ModelSerializer):
 
         return variants
 
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get("variants"):
+            raise serializers.ValidationError(
+                {"variants": "At least one variant is required."}
+            )
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
 
@@ -112,6 +119,15 @@ class ProductSerializer(serializers.ModelSerializer):
 
         self._generate_subvariants(product_obj, option_groups)
         return product_obj
+
+    def update(self, instance, validated_data):
+        
+        validated_data.pop("variants", None)
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+        return instance
 
     def _generate_subvariants(self, product_obj, option_groups):
 
