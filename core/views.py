@@ -156,6 +156,7 @@ class ProductVariantViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
 
         variant = self.get_object()
+        product = variant.product
 
         serializer = ProductVariantUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -163,13 +164,36 @@ class ProductVariantViewSet(viewsets.ModelViewSet):
         variant.name = serializer.validated_data["name"]
         variant.save(update_fields=["name"])
 
-        variant.options.all().delete()
-        for value in serializer.validated_data["options"]:
-            VariantOption.objects.create(variant=variant, value=value)
+        new_values = serializer.validated_data["options"]
+        new_values_lower = {v.lower() for v in new_values}
 
-        regenerate_subvariants(variant.product)
+        existing_options = list(variant.options.all())
+        existing_by_lower = {o.value.lower(): o for o in existing_options}
 
-        logger.info("Variant id=%s updated on product=%s", variant.id, variant.product.ProductCode)
+        removed_options = [
+            o for o in existing_options if o.value.lower() not in new_values_lower
+        ]
+        if removed_options:
+            removed_ids = [o.id for o in removed_options]
+            affected_subvariant_ids = list(
+                SubVariant.objects
+                .filter(product=product, options__id__in=removed_ids)
+                .values_list("id", flat=True)
+                .distinct()
+            )
+            SubVariant.objects.filter(id__in=affected_subvariant_ids).delete()
+
+        for o in removed_options:
+            o.delete()
+
+        for value in new_values:
+            if value.lower() not in existing_by_lower:
+                VariantOption.objects.create(variant=variant, value=value)
+
+        regenerate_subvariants(product)
+        sync_product_stock(product)
+
+        logger.info("Variant id=%s updated on product=%s", variant.id, product.ProductCode)
 
         return Response(ProductVariantSerializer(variant).data)
 
@@ -180,10 +204,6 @@ class ProductVariantViewSet(viewsets.ModelViewSet):
         product = variant.product
         variant_name = variant.name
 
-        # Any sub-variant that uses one of this variant's options becomes
-        # invalid once the variant is removed (incomplete combination), so
-        # delete those sub-variants explicitly. M2M on_delete=CASCADE only
-        # removes the join rows, not the SubVariant itself.
         option_ids = list(variant.options.values_list("id", flat=True))
         affected_ids = list(
             SubVariant.objects
