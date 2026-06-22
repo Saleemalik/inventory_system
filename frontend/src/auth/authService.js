@@ -22,6 +22,6 @@ export const isAuthenticated = () => {
 };
 
 export const getCurrentUser = async () => {
-    const res = await api.get("/accounts/me/");
+    const res = await api.get("/me/");
     return res.data;
 }

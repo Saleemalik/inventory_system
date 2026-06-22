@@ -20,6 +20,7 @@ from .models import (
 )
 
 from .serializers import (
+    UserSerializer,
     ProductSerializer,
     ProductVariantSerializer,
     ProductVariantCreateSerializer,
@@ -42,6 +43,15 @@ class StandardPagination(PageNumberPagination):
     page_size_query_param = "page_size"
     max_page_size = 100
 
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+    
 
 class ProductViewSet(viewsets.ModelViewSet):
 

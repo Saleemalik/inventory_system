@@ -1,5 +1,5 @@
 from itertools import product as cartesian_product
-
+from django.contrib.auth.models import User
 from django.db import transaction
 from rest_framework import serializers
 
@@ -10,6 +10,13 @@ from .models import (
     SubVariant,
     StockTransaction,
 )
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+        
 
 
 class VariantOptionSerializer(serializers.ModelSerializer):

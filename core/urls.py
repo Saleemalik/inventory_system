@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework import routers
 
 from core.views import (
+    MeView,
     ProductViewSet,
     ProductVariantViewSet,
     StockReportAPIView,
@@ -21,6 +22,7 @@ router.register("products", ProductViewSet, basename="products")
 urlpatterns = [
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('me/', MeView.as_view(), name='me'),
     path(
         "variants/<int:pk>/",
         ProductVariantViewSet.as_view({"put": "update", "delete": "destroy"}),
